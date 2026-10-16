@@ -8,6 +8,7 @@ const NAV = [
   { to: "/compare", label: "Compare" },
   { to: "/limits", label: "Limits" },
   { to: "/audit", label: "Audit log" },
+  { to: "/cad/receptacle", label: "Receptacle 3D" },
 ];
 
 export default function Layout() {

@@ -1,0 +1,19 @@
+.notice { padding: 8px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 13px; }
+
+.cad { display: grid; grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cad { grid-template-columns: 1fr; } }
+
+.cad__viewport { position: relative; height: 560px; background: var(--surface);
+                 border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.cad__legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 12px;
+               padding: 6px 10px; background: rgba(255,255,255,0.9); border-radius: 6px; font-size: 12px; }
+.cad__legend span, .part-list__item { display: inline-flex; align-items: center; gap: 6px; }
+.cad__legend i, .part-list__item i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+.cad__side { display: flex; flex-direction: column; gap: 16px; }
+.part-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.part-list__item { padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px;
+                   background: var(--surface); font-size: 13px; cursor: pointer; }
+.part-list__item--active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.part-panel h2 { margin: 0 0 12px; font-size: 18px; }
+.part-panel .chart { margin-top: 12px; }

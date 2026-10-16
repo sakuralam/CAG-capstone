@@ -1,5 +1,8 @@
 // Fake API. Answers the same paths FastAPI will serve later (/api/...).
-// All numbers are MOCK values for building the UI, not real results or real CAG limits.
+// All numbers are MOCK values for building the UI, not real results or real limits.
+//
+// v2: every check and series now has a `partId` (links readings to CAD parts),
+//     and every run has `component` / `eventType` (so the CAD page can filter runs).
 import { http, HttpResponse, delay } from "msw";
 
 const NETWORK_DELAY_MS = 300; // makes loading states visible
@@ -27,7 +30,7 @@ function fakeHash(seed) {
 
 const notFound = (what) => HttpResponse.json({ detail: `${what} not found` }, { status: 404 });
 
-// ---------- Limits (PLACEHOLDERS, not real CAG values) ----------
+// ---------- Limits (PLACEHOLDERS, not real values) ----------
 
 let LIMITS = [
   { id: "lim-1", metric: "strap_current", label: "Max strap current", value: 120, unit: "kA", version: 1 },
@@ -39,10 +42,11 @@ let LIMITS = [
 const limitById = (id) => LIMITS.find((l) => l.id === id);
 
 // Value <= limit passes. Margin = how much headroom is left, as % of the limit.
-function check(limitId, value) {
+function check(limitId, value, partId) {
   const l = limitById(limitId);
   return {
     limitId,
+    partId,
     label: l.label,
     value: round(value),
     limit: l.value,
@@ -59,31 +63,42 @@ const LIGHTNING_TIMES = range(0, 1000, 5);
 const lightningShape = (t) => Math.exp(-t / 350) - Math.exp(-t / 2);
 const SHAPE_PEAK = Math.max(...LIGHTNING_TIMES.map(lightningShape));
 
-function lightningSeries(metric, label, unit, peak) {
+function lightningSeries(metric, label, unit, peak, partId) {
   return {
-    metric, label, unit, timeUnit: "µs",
+    metric, label, unit, partId, timeUnit: "µs",
     points: LIGHTNING_TIMES.map((t) => ({ t, value: round((peak * lightningShape(t)) / SHAPE_PEAK) })),
   };
 }
 
 // Temperature rise builds up with the energy dumped in (∝ ∫ i² dt), so it climbs then flattens
-function temperatureSeries(finalRise) {
+function temperatureSeries(finalRise, partId) {
   let sum = 0;
   const cumulative = LIGHTNING_TIMES.map((t) => (sum += lightningShape(t) ** 2));
   return {
-    metric: "strap_temp", label: "Strap 1 temperature rise", unit: "°C", timeUnit: "µs",
+    metric: "strap_temp", label: "Strap 1 temperature rise", unit: "°C", partId, timeUnit: "µs",
     points: LIGHTNING_TIMES.map((t, i) => ({ t, value: round((finalRise * cumulative[i]) / sum) })),
   };
 }
 
 // Static: charge bleeding off exponentially (time in ms)
 const STATIC_TIMES = range(0, 200, 2);
-function staticSeries(v0, tauMs) {
+function staticSeries(v0, tauMs, partId) {
   return {
-    metric: "static_voltage", label: "Static potential", unit: "V", timeUnit: "ms",
+    metric: "static_voltage", label: "Static potential", unit: "V", partId, timeUnit: "ms",
     points: STATIC_TIMES.map((t) => ({ t, value: round(v0 * Math.exp(-t / tauMs)) })),
   };
 }
+
+// ---------- Which CAD part each reading belongs to ----------
+// Receptacle part names match src/config/models.js and the real receptacle .glb.
+// LPBD names are guesses until its CAD exists.
+const PARTS = {
+  // Bonding bridge attaches to the pin, so static discharge readings go there.
+  // Touch voltage and earth resistance are whole-system readings; shown on BODY
+  // until the page has a separate "system readings" section.
+  Receptacle: { static: "Removable Pin", touch: "BODY", earth: "BODY" },
+  LPBD: { static: "wheel", touch: "bracket", earth: "wheel", strap: "strap_1" },
+};
 
 // ---------- Scenarios ----------
 
@@ -102,7 +117,7 @@ const SCENARIO_DEFS = [
   { id: 7, variant: "Prototype", component: "Receptacle", eventType: "static", condition: "dry", status: "done",
     p: { v0: 5000, tauMs: 45 } },
   { id: 8, variant: "Prototype", component: "Receptacle", eventType: "static", condition: "wet", status: "running" },
-  // Current CAG setup, for the Compare page
+  // Current setup, for the Compare page
   { id: 9, variant: "Baseline", component: "LPBD", eventType: "lightning", condition: "dry", status: "done",
     p: { peakKA: 200, share: 0.7, tempRise: 180, touchV: 900, earthR: 6.5 } },
 ];
@@ -112,30 +127,31 @@ const scenarioName = (d) => `${d.variant} – ${d.component} – ${d.condition} 
 // Build a run (series + checks) for each finished scenario
 function buildRun(d) {
   const { p } = d;
+  const part = PARTS[d.component];
   let series, checks;
 
   if (d.eventType === "static") {
-    series = [staticSeries(p.v0, p.tauMs)];
-    checks = [check("lim-5", p.v0 * Math.exp(-100 / p.tauMs))];
+    series = [staticSeries(p.v0, p.tauMs, part.static)];
+    checks = [check("lim-5", p.v0 * Math.exp(-100 / p.tauMs), part.static)];
   } else if (d.component === "LPBD") {
     const strapPeak = p.peakKA * p.share;
     series = [
-      lightningSeries("strap_current", "Strap 1 current", "kA", strapPeak),
-      temperatureSeries(p.tempRise),
-      lightningSeries("touch_voltage", "Touch voltage", "V", p.touchV),
+      lightningSeries("strap_current", "Strap 1 current", "kA", strapPeak, part.strap),
+      temperatureSeries(p.tempRise, part.strap),
+      lightningSeries("touch_voltage", "Touch voltage", "V", p.touchV, part.touch),
     ];
     checks = [
-      check("lim-1", strapPeak),
-      check("lim-2", p.tempRise),
-      check("lim-3", p.touchV),
-      check("lim-4", p.earthR),
+      check("lim-1", strapPeak, part.strap),
+      check("lim-2", p.tempRise, part.strap),
+      check("lim-3", p.touchV, part.touch),
+      check("lim-4", p.earthR, part.earth),
     ];
   } else {
     series = [
-      lightningSeries("earth_current", "Current into earth", "kA", p.peakKA),
-      lightningSeries("touch_voltage", "Touch voltage", "V", p.touchV),
+      lightningSeries("earth_current", "Current into earth", "kA", p.peakKA, part.earth),
+      lightningSeries("touch_voltage", "Touch voltage", "V", p.touchV, part.touch),
     ];
-    checks = [check("lim-3", p.touchV), check("lim-4", p.earthR)];
+    checks = [check("lim-3", p.touchV, part.touch), check("lim-4", p.earthR, part.earth)];
   }
 
   const id = 100 + d.id;
@@ -143,9 +159,12 @@ function buildRun(d) {
     id,
     scenarioId: d.id,
     scenarioName: scenarioName(d),
+    component: d.component,
+    eventType: d.eventType,
+    condition: d.condition,
     source: "simulated",
     createdAt: new Date(Date.UTC(2026, 9, 6, 2, d.id * 7)).toISOString(),
-    parserVersion: "mock-0.1",
+    parserVersion: "mock-0.2",
     fileHash: fakeHash(id),
     result: checks.every((c) => c.result === "pass") ? "pass" : "fail",
     checks,
@@ -199,6 +218,7 @@ export const handlers = [
     const q = new URL(request.url).searchParams;
     const list = RUNS.filter((r) =>
       (!q.get("scenarioId") || r.scenarioId === Number(q.get("scenarioId"))) &&
+      (!q.get("component") || r.component === q.get("component")) &&
       (!q.get("source") || r.source === q.get("source"))
     ).map(runSummary);
     return HttpResponse.json(list);
@@ -224,11 +244,11 @@ export const handlers = [
   http.get("/api/compare", async ({ request }) => {
     await delay(NETWORK_DELAY_MS);
     const q = new URL(request.url).searchParams;
-    const proto = runById(Number(q.get("prototype")));
-    const base = runById(Number(q.get("baseline")));
     if (!q.get("prototype") || !q.get("baseline")) {
       return HttpResponse.json({ detail: "Both prototype and baseline are required" }, { status: 400 });
     }
+    const proto = runById(Number(q.get("prototype")));
+    const base = runById(Number(q.get("baseline")));
     if (!proto || !base) return notFound("Run");
 
     // Only compare checks both runs have

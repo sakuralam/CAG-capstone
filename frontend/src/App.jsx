@@ -22,10 +22,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login sits outside Layout, so it has no nav bar */}
+        {}
         <Route path="/login" element={<Login />} />
 
-        {/* Everything else renders inside Layout's <Outlet /> */}
+        {}
         <Route element={<Layout />}>
           <Route index element={<Overview />} />
           <Route path="runs/:runId" element={<RunDetail />} />

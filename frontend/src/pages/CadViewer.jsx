@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Bounds } from "@react-three/drei";
 import CadModel, { STATUS_COLORS } from "../components/CadModel";
-import PartPanel from "../components/PartPanel";
+import PartPanel, { SystemPanel } from "../components/PartPanel";
 import StatusBadge from "../components/StatusBadge";
 import { MODELS } from "../config/models";
 import { useRuns, useRun, useRunResults, useLimits } from "../hooks/useRuns";
@@ -114,6 +114,7 @@ export default function CadViewer() {
           </ul>
           <PartPanel partId={selectedPart} parts={config.parts} run={run.data}
                      series={results.data?.series} limits={limits.data} />
+          <SystemPanel run={run.data} series={results.data?.series} limits={limits.data} />
         </aside>
       </div>
     </div>

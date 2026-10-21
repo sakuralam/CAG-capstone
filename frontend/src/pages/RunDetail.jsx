@@ -53,7 +53,8 @@ export default function RunDetail() {
         </thead>
         <tbody>
           {r.checks.map((c) => (
-            <tr key={c.limitId}>
+            // id is unique per limit + part (one limit can apply to two straps)
+            <tr key={c.id ?? c.limitId}>
               <td>{c.label}</td>
               <td>{c.value} {c.unit}</td>
               <td>{c.limit} {c.unit}</td>
@@ -69,7 +70,8 @@ export default function RunDetail() {
       {results.error && <p className="error">Could not load results: {results.error.message}</p>}
       <div className="charts">
         {results.data?.series.map((s) => (
-          <TimeSeriesChart key={s.metric} title={s.label} series={s} limits={limitsFor(s.metric)} />
+          <TimeSeriesChart key={s.id ?? s.metric} title={s.label} series={s}
+                           limits={limitsFor(s.metric)} timeUnit={s.timeUnit} />
         ))}
       </div>
     </div>

@@ -9,6 +9,7 @@ const NAV = [
   { to: "/limits", label: "Limits" },
   { to: "/audit", label: "Audit log" },
   { to: "/cad/receptacle", label: "Receptacle 3D" },
+     { to: "/cad/lpbd", label: "LPBD 3D" },
 ];
 
 export default function Layout() {

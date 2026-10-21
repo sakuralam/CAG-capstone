@@ -20,5 +20,20 @@ export const MODELS = {
     },
   },
 
-  // lpbd: { component: "LPBD", title: "Bonding device (LPBD)", url: "/models/lpbd.glb", parts: { ... } },
+  lpbd: {
+    component: "LPBD",
+    title: "Bonding device (LPBD)",
+    url: "/models/lpbd-placeholder.glb",
+    placeholder: true,
+    // Placeholder names. When the real LPBD .glb arrives, replace with the names in that file
+    // and update the LPBD line of the PARTS table in src/mocks/handlers.js to match.
+    parts: {
+      bracket:     { label: "Mounting bracket" },
+      body:        { label: "Body" },
+      sliding_rod: { label: "Sliding rod" },
+      strap_1:     { label: "Earthing strap 1" },
+      strap_2:     { label: "Earthing strap 2" },
+      wheel:       { label: "Conductive wheel" },
+    },
+  },
 };
